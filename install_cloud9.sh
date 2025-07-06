@@ -6,11 +6,47 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Set default values
-C9_PORT=8080
-C9_USERNAME="root"
-C9_PASSWORD="Password@2025"
-WORKSPACE_DIR="$HOME/project"
+echo -e "${YELLOW}======= Cloud9 IDE Installer =======${NC}"
+
+# Prompt for configuration values
+echo -e "${YELLOW}Please enter configuration values:${NC}"
+
+# Default values
+DEFAULT_PORT=8080
+DEFAULT_USERNAME="root"
+DEFAULT_PASSWORD="Password@2025"
+DEFAULT_WORKSPACE="$HOME/project"
+
+# Get port
+read -p "Port number [$DEFAULT_PORT]: " C9_PORT
+C9_PORT=${C9_PORT:-$DEFAULT_PORT}
+
+# Get username
+read -p "Username [$DEFAULT_USERNAME]: " C9_USERNAME
+C9_USERNAME=${C9_USERNAME:-$DEFAULT_USERNAME}
+
+# Get password (visible input)
+read -p "Password [$DEFAULT_PASSWORD]: " C9_PASSWORD
+C9_PASSWORD=${C9_PASSWORD:-$DEFAULT_PASSWORD}
+
+# Get workspace directory
+read -p "Workspace directory [$DEFAULT_WORKSPACE]: " WORKSPACE_DIR
+WORKSPACE_DIR=${WORKSPACE_DIR:-$DEFAULT_WORKSPACE}
+
+# Confirm settings
+echo -e "\n${YELLOW}Configuration Summary:${NC}"
+echo -e "Port: ${GREEN}$C9_PORT${NC}"
+echo -e "Username: ${GREEN}$C9_USERNAME${NC}"
+echo -e "Password: ${GREEN}$C9_PASSWORD${NC}"
+echo -e "Workspace: ${GREEN}$WORKSPACE_DIR${NC}"
+echo ""
+
+# Ask for confirmation
+read -p "Continue with installation? (y/n): " confirm
+if [[ $confirm != [yY] && $confirm != [yY][eE][sS] ]]; then
+    echo -e "${RED}Installation cancelled.${NC}"
+    exit 1
+fi
 
 echo -e "${YELLOW}======= Installing Cloud9 IDE =======${NC}"
 
