@@ -8,6 +8,37 @@ NC='\033[0m' # No Color
 
 echo -e "${YELLOW}======= Cloud9 IDE Installer =======${NC}"
 
+# Check if running as root
+if [ "$(id -u)" != "0" ]; then
+    echo -e "${YELLOW}This script needs to run as root. Do you want to:${NC}"
+    echo -e "1) Enable root login and continue installation as root"
+    echo -e "2) Continue with current user (not recommended)"
+    read -p "Select option (1/2): " root_option
+    
+    if [ "$root_option" = "1" ]; then
+        echo -e "${YELLOW}Setting up root login and switching to root user...${NC}"
+        
+        # Enable root login in SSH config for future use
+        sudo sed -i 's/#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo systemctl restart ssh 2>/dev/null || sudo systemctl restart sshd 2>/dev/null
+        
+        # Set root password if desired
+        read -p "Set new root password? (y/n): " set_pass
+        if [[ $set_pass == [yY] || $set_pass == [yY][eE][sS] ]]; then
+            read -p "Enter new root password: " root_password
+            echo "root:$root_password" | sudo chpasswd
+            echo -e "${GREEN}Root password updated successfully!${NC}"
+        fi
+        
+        # Re-execute the script as root
+        echo -e "${YELLOW}Switching to root user and continuing installation...${NC}"
+        exec sudo su -c "curl -s https://raw.githubusercontent.com/bl0ks/c9/main/install_cloud9.sh | bash"
+        exit 0
+    fi
+    
+    echo -e "${YELLOW}Continuing as non-root user. Some operations may fail.${NC}"
+fi
+
 # Prompt for configuration values
 echo -e "${YELLOW}Please enter configuration values:${NC}"
 
