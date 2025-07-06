@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 # Set default values
 C9_PORT=8080
 C9_USERNAME="root"
-C9_PASSWORD="Prof@2025"
+C9_PASSWORD="Password@2025"
 WORKSPACE_DIR="$HOME/project"
 
 echo -e "${YELLOW}======= Installing Cloud9 IDE =======${NC}"
