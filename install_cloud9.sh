@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}======= Cloud9 IDE Installer =======${NC}"
+echo -e "${YELLOW}======= Cloud9 IDE Installer (Fixed) =======${NC}"
 
 # Check if running as root
 if [ "$(id -u)" != "0" ]; then
@@ -95,32 +95,68 @@ check_status() {
 echo -e "${YELLOW}Installing system dependencies...${NC}"
 sudo apt-get update && sudo apt-get upgrade -y
 check_status "System update"
+
+# Install core utilities and build tools
 sudo apt-get install -y curl git build-essential software-properties-common
 check_status "Core utilities"
+
+# Install development libraries
 sudo apt-get install -y libx11-dev libxtst-dev libxt-dev libxkbfile-dev
 check_status "Development libraries"
+
+# Install additional build dependencies
+sudo apt-get install -y make g++ libc6-dev
+check_status "Additional build tools"
+
+# Install Python 2.7 and development headers
+echo -e "${YELLOW}Setting up Python 2.7 with development headers...${NC}"
+sudo apt-get install -y python2.7 python2.7-dev python-dev-is-python2 python2.7-distutils
+check_status "Python 2.7 and development headers"
+
+# Try to install pip for Python 2.7 if available
+echo -e "${YELLOW}Setting up Python 2.7 pip...${NC}"
+curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+sudo python2.7 get-pip.py
+rm get-pip.py
+check_status "Python 2.7 pip setup"
+
+# Create Python symlink carefully
+echo -e "${YELLOW}Setting up Python symlink...${NC}"
+# Back up existing python symlink if it exists
+if [ -L /usr/bin/python ]; then
+    sudo mv /usr/bin/python /usr/bin/python.backup
+fi
+sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+check_status "Python symlink"
+
+# Verify Python installation
+echo -e "${YELLOW}Verifying Python installation...${NC}"
+python --version
+python2.7 --version
 
 # Install Node.js and downgrade to v6.17.1
 echo -e "${YELLOW}Setting up Node.js v6.17.1...${NC}"
 sudo apt install -y nodejs npm
 check_status "Node.js and npm"
+
+# Install n (node version manager)
 sudo npm install -g n
 check_status "Node version manager (n)"
+
+# Install specific Node.js version
 sudo n 6.17.1
 check_status "Node.js v6.17.1"
-hash -r
-node -v
 
-# Setup Python 2.7
-echo -e "${YELLOW}Setting up Python 2.7...${NC}"
-sudo apt-get install -y python2.7
-check_status "Python 2.7"
-sudo ln -sf /usr/bin/python2.7 /usr/bin/python
-check_status "Python symlink"
-python --version
+# Clear hash and verify
+hash -r
+echo "Node.js version: $(node -v)"
+echo "NPM version: $(npm -v)"
 
 # Clone and set up Cloud9
 echo -e "${YELLOW}Cloning Cloud9 repository...${NC}"
+if [ -d ~/prof ]; then
+    rm -rf ~/prof
+fi
 git clone https://github.com/c9/core.git ~/prof
 check_status "Cloud9 repository"
 cd ~/prof
@@ -132,14 +168,45 @@ check_status "Custom install script"
 chmod +x scripts/install-sdk.sh
 check_status "Script permissions"
 
+# Set environment variables for compilation
+export PYTHON=/usr/bin/python2.7
+export CXX=g++
+export CC=gcc
+
 # Run installation
 echo -e "${YELLOW}Running Cloud9 installation...${NC}"
 ./scripts/install-sdk.sh
 check_status "Cloud9 SDK installation"
 
-# Install pty.js with Python 2.7
-echo -e "${YELLOW}Installing pty.js...${NC}"
-npm install pty.js@0.3.1 --build-from-source --python=/usr/bin/python2.7
+# Install pty.js with proper Python configuration
+echo -e "${YELLOW}Installing pty.js with Python 2.7...${NC}"
+cd ~/prof
+
+# Try multiple approaches for pty.js installation
+echo -e "${YELLOW}Attempting pty.js installation (method 1)...${NC}"
+npm install pty.js@0.3.1 --build-from-source --python=/usr/bin/python2.7 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}Method 1 failed, trying method 2...${NC}"
+    # Alternative installation method
+    npm config set python /usr/bin/python2.7
+    npm install pty.js@0.3.1 --build-from-source 2>/dev/null
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}Method 2 failed, trying method 3 with node-gyp...${NC}"
+        # Install node-gyp globally and try again
+        sudo npm install -g node-gyp
+        node-gyp configure --python=/usr/bin/python2.7
+        npm install pty.js@0.3.1 --build-from-source --python=/usr/bin/python2.7
+        
+        if [ $? -ne 0 ]; then
+            echo -e "${YELLOW}All methods failed, trying alternative pty module...${NC}"
+            # Try installing node-pty as alternative
+            npm install node-pty@0.7.8 --build-from-source --python=/usr/bin/python2.7
+        fi
+    fi
+fi
+
 check_status "pty.js installation"
 
 # Create workspace directory
@@ -158,6 +225,8 @@ ExecStart=/usr/local/bin/node $HOME/prof/server.js --listen 0.0.0.0 --port $C9_P
 Restart=always
 User=$USER
 Environment=NODE_ENV=production
+Environment=PYTHON=/usr/bin/python2.7
+WorkingDirectory=$HOME/prof
 
 [Install]
 WantedBy=multi-user.target
@@ -176,11 +245,23 @@ sudo systemctl start cloud9.service
 check_status "Service started"
 
 # Show service status
-sudo systemctl status cloud9.service
+echo -e "${YELLOW}Checking service status...${NC}"
+sudo systemctl status cloud9.service --no-pager
+
+# Check if service is running
+if sudo systemctl is-active --quiet cloud9.service; then
+    echo -e "${GREEN}✓ Cloud9 service is running${NC}"
+else
+    echo -e "${RED}✗ Cloud9 service failed to start${NC}"
+    echo -e "${YELLOW}Checking logs...${NC}"
+    sudo journalctl -u cloud9.service --no-pager -n 20
+fi
 
 # Display success message
-echo -e "${GREEN}======= Cloud9 IDE installed successfully! =======${NC}"
+echo -e "${GREEN}======= Cloud9 IDE installation completed! =======${NC}"
 echo -e "Access your Cloud9 IDE at: http://$(hostname -I | awk '{print $1}'):$C9_PORT"
 echo -e "Username: $C9_USERNAME"
 echo -e "Password: $C9_PASSWORD"
 echo -e "${YELLOW}Workspace directory: $WORKSPACE_DIR${NC}"
+echo -e "\n${YELLOW}If there are any issues, check the service logs with:${NC}"
+echo -e "sudo journalctl -u cloud9.service -f"
